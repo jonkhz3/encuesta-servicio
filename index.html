@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Encuesta de Servicio · Walmart Puerta Parada</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --azul:#0071CE;
+  --azul-oscuro:#041E42;
+  --spark:#FFC220;
+  --fondo:#F5F7FA;
+  --tarjeta:#FFFFFF;
+  --texto:#1B2430;
+  --texto-suave:#6B7280;
+  --verde:#2E7D32;
+  --ambar:#B7791F;
+  --rojo:#C62828;
+  --borde:#E5E9F0;
+  --radio:16px;
+  --sombra: 0 4px 20px rgba(4,30,66,0.08);
+  --display: 'Poppins', sans-serif;
+  --body: 'Inter', sans-serif;
+  --mono: 'Roboto Mono', monospace;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family: var(--body);
+  background: var(--fondo);
+  color: var(--texto);
+  min-height:100vh;
+  -webkit-font-smoothing: antialiased;
+}
+button{font-family: inherit; cursor:pointer; border:none;}
+input, textarea{font-family: inherit;}
+.oculto{display:none !important;}
+
+/* ============ SPARK BG (signature element) ============ */
+.spark-bg{
+  position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none;
+}
+.spark-bg::before{
+  content:"";
+  position:absolute; top:-30%; right:-20%;
+  width:70vw; height:70vw;
+  background: radial-gradient(circle, rgba(255,194,32,0.20) 0%, rgba(255,194,32,0) 65%);
+  border-radius:50%;
+}
+.spark-bg::after{
+  content:"";
+  position:absolute; bottom:-25%; left:-25%;
+  width:60vw; height:60vw;
+  background: radial-gradient(circle, rgba(0,113,206,0.12) 0%, rgba(0,113,206,0) 65%);
+  border-radius:50%;
+}
+
+/* ============ SURVEY LAYOUT ============ */
+.survey-wrap{
+  max-width: 480px;
+  margin: 0 auto;
+  min-height:100vh;
+  display:flex; flex-direction:column;
+  padding: 20px 20px 40px;
+}
+.survey-header{
+  display:flex; align-items:center; gap:12px;
+  padding: 8px 0 24px;
+}
+.logo-badge{
+  width:44px; height:44px; border-radius:12px;
+  background: linear-gradient(135deg, var(--azul), var(--azul-oscuro));
+  display:flex; align-items:center; justify-content:center;
+  color:white; font-family:var(--display); font-weight:800; font-size:18px;
+  flex-shrink:0;
+}
+.header-titles h1{
+  font-family:var(--display); font-size:16px; font-weight:700; color:var(--azul-oscuro);
+  line-height:1.2;
+}
+.header-titles p{font-size:12px; color:var(--texto-suave); margin-top:2px;}
+
+.progress-track{
+  height:6px; background:var(--borde); border-radius:99px; overflow:hidden; margin-bottom:28px;
+}
+.progress-fill{
+  height:100%; background: linear-gradient(90deg, var(--azul), var(--spark));
+  border-radius:99px; transition: width .35s ease;
+  width: 25%;
+}
+
+.step{
+  flex:1; display:flex; flex-direction:column;
+  animation: fadeUp .35s ease;
+}
+@keyframes fadeUp{
+  from{opacity:0; transform:translateY(10px);}
+  to{opacity:1; transform:translateY(0);}
+}
+.step h2{
+  font-family:var(--display); font-size:22px; font-weight:700;
+  color:var(--azul-oscuro); margin-bottom:6px;
+}
+.step .sub{color:var(--texto-suave); font-size:14px; margin-bottom:24px;}
+
+/* area grid */
+.area-grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap:12px;
+}
+.area-card{
+  background:var(--tarjeta); border:2px solid var(--borde); border-radius:var(--radio);
+  padding:18px 14px; text-align:center; box-shadow: var(--sombra);
+  transition: all .15s ease;
+}
+.area-card .icon{font-size:30px; display:block; margin-bottom:8px;}
+.area-card .nombre{font-weight:600; font-size:13.5px; color:var(--texto);}
+.area-card:active, .area-card.activa{
+  border-color: var(--azul); background: #EAF3FC; transform: scale(0.97);
+}
+
+/* stars */
+.star-stage{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding: 10px 0 30px;
+}
+.star-stage .area-pill{
+  display:inline-flex; align-items:center; gap:6px;
+  background:#EAF3FC; color:var(--azul); font-weight:600; font-size:13px;
+  padding:6px 14px; border-radius:99px; margin-bottom:18px;
+}
+.stars{display:flex; gap:8px; margin: 10px 0 18px;}
+.star-btn{
+  font-size:44px; line-height:1; color:#D9DEE7; background:none; transition: transform .12s ease, color .12s ease;
+}
+.star-btn.on{color: var(--spark); transform: scale(1.08);}
+.star-label{font-weight:700; font-family:var(--display); font-size:15px; color:var(--azul-oscuro); min-height:20px;}
+
+textarea#comentario{
+  width:100%; border:2px solid var(--borde); border-radius:14px; padding:14px;
+  font-size:14px; resize:none; min-height:100px; margin-top:6px;
+  background:var(--tarjeta);
+}
+textarea#comentario:focus{outline:none; border-color:var(--azul);}
+
+.btn-primary{
+  background: var(--azul); color:white; font-weight:700; font-size:15px;
+  padding:15px; border-radius:14px; width:100%; margin-top:auto;
+  box-shadow: 0 6px 16px rgba(0,113,206,0.28);
+}
+.btn-primary:disabled{background:#B9C6D6; box-shadow:none;}
+.btn-secundario{
+  background:transparent; color:var(--texto-suave); font-weight:600; font-size:14px;
+  padding:12px; width:100%; margin-top:10px;
+}
+.btn-ghost-top{
+  background:none; color:var(--azul); font-weight:600; font-size:14px; align-self:flex-start; margin-bottom:14px;
+  display:flex; align-items:center; gap:4px;
+}
+
+/* thanks */
+.thanks-stage{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+}
+.thanks-icon{
+  width:84px; height:84px; border-radius:50%; background: linear-gradient(135deg, var(--verde), #66BB6A);
+  display:flex; align-items:center; justify-content:center; font-size:40px; color:white; margin-bottom:20px;
+}
+.thanks-stage h2{font-family:var(--display); font-size:22px; color:var(--azul-oscuro); margin-bottom:8px;}
+.thanks-stage p{color:var(--texto-suave); font-size:14px; max-width:280px;}
+
+/* ============ ADMIN ============ */
+.admin-wrap{max-width:1080px; margin:0 auto; padding: 24px 20px 60px;}
+.admin-top{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;
+}
+.admin-top h1{font-family:var(--display); font-size:22px; color:var(--azul-oscuro);}
+.admin-top .tag{font-size:12.5px; color:var(--texto-suave);}
+.top-actions{display:flex; gap:10px; flex-wrap:wrap;}
+.btn-sm{
+  padding:9px 16px; border-radius:10px; font-weight:600; font-size:13px;
+  background:white; border:1.5px solid var(--borde); color:var(--texto);
+}
+.btn-sm.azul{background:var(--azul); color:white; border-color:var(--azul);}
+.btn-sm.rojo{background:white; color:var(--rojo); border-color:#F2C2C2;}
+
+.login-box{
+  max-width:360px; margin: 12vh auto; background:var(--tarjeta); border-radius:var(--radio);
+  padding:32px 26px; box-shadow:var(--sombra); text-align:center;
+}
+.login-box .logo-badge{margin:0 auto 16px;}
+.login-box h2{font-family:var(--display); font-size:19px; color:var(--azul-oscuro); margin-bottom:4px;}
+.login-box p{font-size:13px; color:var(--texto-suave); margin-bottom:20px;}
+.login-box input{
+  width:100%; padding:12px 14px; border:1.5px solid var(--borde); border-radius:10px;
+  margin-bottom:10px; font-size:14px;
+}
+.login-box input:focus{outline:none; border-color:var(--azul);}
+.login-error{color:var(--rojo); font-size:12.5px; min-height:16px; margin-bottom:8px;}
+
+.kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;}
+.kpi-card{
+  background:var(--tarjeta); border-radius:14px; padding:18px; box-shadow:var(--sombra);
+}
+.kpi-card .label{font-size:12px; color:var(--texto-suave); font-weight:600; text-transform:uppercase; letter-spacing:.03em;}
+.kpi-card .value{font-family:var(--mono); font-size:26px; font-weight:600; color:var(--azul-oscuro); margin-top:6px;}
+.kpi-card .value.verde{color:var(--verde);}
+.kpi-card .value.rojo{color:var(--rojo);}
+.kpi-card .sub{font-size:12px; color:var(--texto-suave); margin-top:4px;}
+
+.filters{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+.filters select{
+  padding:9px 12px; border-radius:10px; border:1.5px solid var(--borde); font-size:13px; background:white;
+}
+
+.charts-grid{display:grid; grid-template-columns: 1.1fr 1fr; gap:16px; margin-bottom:20px;}
+.chart-card{background:var(--tarjeta); border-radius:14px; padding:18px; box-shadow:var(--sombra);}
+.chart-card h3{font-family:var(--display); font-size:14px; color:var(--azul-oscuro); margin-bottom:12px;}
+.chart-card canvas{max-height:260px;}
+
+.table-card{background:var(--tarjeta); border-radius:14px; padding:18px; box-shadow:var(--sombra); overflow-x:auto;}
+.table-card h3{font-family:var(--display); font-size:14px; color:var(--azul-oscuro); margin-bottom:12px;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{
+  text-align:left; padding:10px 12px; color:var(--texto-suave); font-weight:600;
+  border-bottom:2px solid var(--borde); text-transform:uppercase; font-size:11px; letter-spacing:.03em;
+}
+td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
+.stars-mini{color:var(--spark); font-size:13px; letter-spacing:1px;}
+.comentario-cell{max-width:260px; color:var(--texto-suave);}
+.empty-row td{text-align:center; color:var(--texto-suave); padding:30px;}
+
+/* QR view */
+.qr-wrap{max-width:420px; margin:8vh auto; text-align:center; background:var(--tarjeta); padding:32px 28px; border-radius:var(--radio); box-shadow:var(--sombra);}
+.qr-wrap h2{font-family:var(--display); color:var(--azul-oscuro); margin-bottom:6px; font-size:19px;}
+.qr-wrap p{color:var(--texto-suave); font-size:13px; margin-bottom:20px;}
+#qrcode{display:flex; justify-content:center; margin-bottom:18px;}
+.qr-wrap input{
+  width:100%; padding:10px 12px; border:1.5px solid var(--borde); border-radius:10px; margin-bottom:14px; font-size:13px; text-align:center;
+}
+
+@media (max-width: 720px){
+  .kpi-row{grid-template-columns:repeat(2,1fr);}
+  .charts-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="spark-bg"></div>
+
+<!-- ============ VISTA: ENCUESTA ============ -->
+<div id="vista-encuesta" class="survey-wrap oculto">
+  <div class="survey-header">
+    <div class="logo-badge">WP</div>
+    <div class="header-titles">
+      <h1>Walmart Puerta Parada</h1>
+      <p>Encuesta de servicio</p>
+    </div>
+  </div>
+  <div class="progress-track"><div class="progress-fill" id="barra-progreso"></div></div>
+
+  <!-- Paso 1: elegir área -->
+  <div class="step" id="paso-area">
+    <h2>¿Qué área quieres calificar?</h2>
+    <p class="sub">Selecciona el área que visitaste hoy</p>
+    <div class="area-grid" id="grid-areas"></div>
+  </div>
+
+  <!-- Paso 2: estrellas -->
+  <div class="step oculto" id="paso-estrellas">
+    <button class="btn-ghost-top" id="btn-volver-area">← Cambiar área</button>
+    <div class="star-stage">
+      <div class="area-pill" id="pill-area-seleccionada"></div>
+      <h2>¿Cómo calificarías el servicio?</h2>
+      <div class="stars" id="stars-container"></div>
+      <div class="star-label" id="star-label"></div>
+    </div>
+    <button class="btn-primary" id="btn-a-comentario" disabled>Continuar</button>
+  </div>
+
+  <!-- Paso 3: comentario -->
+  <div class="step oculto" id="paso-comentario">
+    <button class="btn-ghost-top" id="btn-volver-estrellas">← Volver</button>
+    <h2>¿Algo que quieras contarnos?</h2>
+    <p class="sub">Opcional — nos ayuda a mejorar</p>
+    <textarea id="comentario" placeholder="Escribe aquí tu comentario (opcional)..." maxlength="300"></textarea>
+    <button class="btn-primary" id="btn-enviar" style="margin-top:20px;">Enviar calificación</button>
+  </div>
+
+  <!-- Paso 4: gracias -->
+  <div class="step oculto thanks-stage" id="paso-gracias">
+    <div class="thanks-icon">✓</div>
+    <h2>¡Gracias por tu opinión!</h2>
+    <p>Tu calificación nos ayuda a mejorar el servicio en tienda.</p>
+    <button class="btn-primary" id="btn-otra-area" style="max-width:260px; margin-top:26px;">Calificar otra área</button>
+  </div>
+</div>
+
+<!-- ============ VISTA: LOGIN ADMIN ============ -->
+<div id="vista-login" class="oculto">
+  <div class="login-box">
+    <div class="logo-badge">WP</div>
+    <h2>Panel administrativo</h2>
+    <p>Acceso solo para personal autorizado</p>
+    <input type="email" id="login-email" placeholder="Correo">
+    <input type="password" id="login-pass" placeholder="Contraseña">
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-primary" id="btn-login">Ingresar</button>
+  </div>
+</div>
+
+<!-- ============ VISTA: DASHBOARD ============ -->
+<div id="vista-dashboard" class="admin-wrap oculto">
+  <div class="admin-top">
+    <div>
+      <h1>Resultados de servicio</h1>
+      <p class="tag">Walmart Puerta Parada · Equipo Cajas</p>
+    </div>
+    <div class="top-actions">
+      <button class="btn-sm" id="btn-ir-qr">Ver código QR</button>
+      <button class="btn-sm azul" id="btn-exportar">Exportar Excel</button>
+      <button class="btn-sm rojo" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <select id="filtro-rango">
+      <option value="7">Últimos 7 días</option>
+      <option value="30" selected>Últimos 30 días</option>
+      <option value="90">Últimos 90 días</option>
+      <option value="0">Todo el historial</option>
+    </select>
+    <select id="filtro-area">
+      <option value="todas">Todas las áreas</option>
+    </select>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="label">Respuestas</div>
+      <div class="value" id="kpi-total">—</div>
+      <div class="sub">en el período seleccionado</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Calificación promedio</div>
+      <div class="value" id="kpi-promedio">—</div>
+      <div class="sub">de 5 estrellas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Mejor área</div>
+      <div class="value verde" id="kpi-mejor" style="font-size:16px;">—</div>
+      <div class="sub" id="kpi-mejor-sub"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Área a mejorar</div>
+      <div class="value rojo" id="kpi-peor" style="font-size:16px;">—</div>
+      <div class="sub" id="kpi-peor-sub"></div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Promedio por área</h3>
+      <canvas id="chart-areas"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Tendencia diaria</h3>
+      <canvas id="chart-tendencia"></canvas>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h3>Respuestas recientes</h3>
+    <table>
+      <thead>
+        <tr><th>Fecha</th><th>Área</th><th>Calificación</th><th>Comentario</th></tr>
+      </thead>
+      <tbody id="tabla-respuestas">
+        <tr class="empty-row"><td colspan="4">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ VISTA: QR ============ -->
+<div id="vista-qr" class="oculto">
+  <div class="qr-wrap">
+    <button class="btn-ghost-top" id="btn-volver-dashboard">← Volver al panel</button>
+    <h2>Código QR de la encuesta</h2>
+    <p>Imprime este código y colócalo en las áreas de la tienda</p>
+    <div id="qrcode"></div>
+    <input type="text" id="qr-url" readonly>
+    <button class="btn-primary" id="btn-descargar-qr">Descargar QR (PNG)</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — edita esto con los datos de tu proyecto Firebase
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAebiyXhJGbDlgQw3Hp5VYmRoreYfHbmSM",
+  authDomain: "encuestas-wpp.firebaseapp.com",
+  projectId: "encuestas-wpp",
+  storageBucket: "encuestas-wpp.firebasestorage.app",
+  messagingSenderId: "1033143029942",
+  appId: "1:1033143029942:web:6c90ca71ab56e904c65617"
+};
+
+// Áreas a evaluar — agrega, quita o renombra libremente
+const AREAS = [
+  { id: "cajas",        nombre: "Cajas",                icon: "🛒" },
+  { id: "verduras",     nombre: "Frutas y Verduras",     icon: "🥬" },
+  { id: "panaderia",    nombre: "Panadería",             icon: "🥖" },
+  { id: "carniceria",   nombre: "Carnicería",            icon: "🥩" },
+  { id: "farmacia",     nombre: "Farmacia",               icon: "💊" },
+  { id: "servicio",     nombre: "Servicio al Cliente",    icon: "🙋" },
+  { id: "limpieza",     nombre: "Limpieza y Orden",       icon: "✨" },
+];
+
+const ETIQUETAS_ESTRELLAS = ["", "Muy malo", "Malo", "Regular", "Bueno", "Excelente"];
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+/* ============================================================
+   ROUTER simple
+   ============================================================ */
+function ruta(){ return location.hash.replace("#","") || "encuesta"; }
+
+function render(){
+  document.getElementById("vista-encuesta").classList.add("oculto");
+  document.getElementById("vista-login").classList.add("oculto");
+  document.getElementById("vista-dashboard").classList.add("oculto");
+  document.getElementById("vista-qr").classList.add("oculto");
+
+  const r = ruta();
+  if(r === "encuesta"){
+    document.getElementById("vista-encuesta").classList.remove("oculto");
+    initEncuesta();
+  } else if(r === "admin"){
+    auth.onAuthStateChanged(user=>{
+      if(user){
+        document.getElementById("vista-dashboard").classList.remove("oculto");
+        cargarDashboard();
+      } else {
+        document.getElementById("vista-login").classList.remove("oculto");
+      }
+    });
+  } else if(r === "qr"){
+    document.getElementById("vista-qr").classList.remove("oculto");
+    initQR();
+  }
+}
+window.addEventListener("hashchange", render);
+
+/* ============================================================
+   ENCUESTA (público, sin login)
+   ============================================================ */
+let areaSeleccionada = null;
+let calificacionSeleccionada = 0;
+let encuestaInicializada = false;
+
+function initEncuesta(){
+  if(encuestaInicializada) return;
+  encuestaInicializada = true;
+
+  const gridAreas = document.getElementById("grid-areas");
+  AREAS.forEach(area=>{
+    const card = document.createElement("button");
+    card.className = "area-card";
+    card.innerHTML = `<span class="icon">${area.icon}</span><span class="nombre">${area.nombre}</span>`;
+    card.addEventListener("click", ()=>{
+      areaSeleccionada = area;
+      document.getElementById("pill-area-seleccionada").innerHTML = `${area.icon} ${area.nombre}`;
+      irAPaso("estrellas");
+    });
+    gridAreas.appendChild(card);
+  });
+
+  const starsContainer = document.getElementById("stars-container");
+  for(let i=1;i<=5;i++){
+    const btn = document.createElement("button");
+    btn.className = "star-btn";
+    btn.textContent = "★";
+    btn.addEventListener("click", ()=>{
+      calificacionSeleccionada = i;
+      pintarEstrellas(i);
+      document.getElementById("star-label").textContent = ETIQUETAS_ESTRELLAS[i];
+      document.getElementById("btn-a-comentario").disabled = false;
+    });
+    starsContainer.appendChild(btn);
+  }
+
+  document.getElementById("btn-volver-area").addEventListener("click", ()=>irAPaso("area"));
+  document.getElementById("btn-volver-estrellas").addEventListener("click", ()=>irAPaso("estrellas"));
+  document.getElementById("btn-a-comentario").addEventListener("click", ()=>irAPaso("comentario"));
+  document.getElementById("btn-enviar").addEventListener("click", enviarRespuesta);
+  document.getElementById("btn-otra-area").addEventListener("click", ()=>{
+    areaSeleccionada = null;
+    calificacionSeleccionada = 0;
+    pintarEstrellas(0);
+    document.getElementById("comentario").value = "";
+    document.getElementById("btn-a-comentario").disabled = true;
+    document.getElementById("star-label").textContent = "";
+    irAPaso("area");
+  });
+}
+
+function pintarEstrellas(n){
+  document.querySelectorAll(".star-btn").forEach((btn,i)=>{
+    btn.classList.toggle("on", i < n);
+  });
+}
+
+function irAPaso(paso){
+  ["area","estrellas","comentario","gracias"].forEach(p=>{
+    document.getElementById("paso-"+p).classList.add("oculto");
+  });
+  document.getElementById("paso-"+paso).classList.remove("oculto");
+  const progresos = { area:25, estrellas:55, comentario:80, gracias:100 };
+  document.getElementById("barra-progreso").style.width = progresos[paso]+"%";
+}
+
+async function enviarRespuesta(){
+  const btn = document.getElementById("btn-enviar");
+  btn.disabled = true;
+  btn.textContent = "Enviando...";
+  try{
+    const ahora = new Date();
+    await db.collection("respuestas").add({
+      area: areaSeleccionada.id,
+      areaNombre: areaSeleccionada.nombre,
+      calificacion: calificacionSeleccionada,
+      comentario: document.getElementById("comentario").value.trim(),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      fecha: ahora.toISOString().slice(0,10)
+    });
+    irAPaso("gracias");
+  }catch(e){
+    alert("No se pudo enviar. Revisa tu conexión e intenta de nuevo.");
+    console.error(e);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "Enviar calificación";
+  }
+}
+
+/* ============================================================
+   LOGIN ADMIN
+   ============================================================ */
+document.getElementById("btn-login").addEventListener("click", async ()=>{
+  const email = document.getElementById("login-email").value.trim();
+  const pass = document.getElementById("login-pass").value;
+  const errorBox = document.getElementById("login-error");
+  errorBox.textContent = "";
+  try{
+    await auth.signInWithEmailAndPassword(email, pass);
+    render();
+  }catch(e){
+    errorBox.textContent = "Correo o contraseña incorrectos.";
+  }
+});
+document.getElementById("btn-logout").addEventListener("click", async ()=>{
+  await auth.signOut();
+  location.hash = "admin";
+  render();
+});
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+let todasLasRespuestas = [];
+let chartAreas = null;
+let chartTendencia = null;
+
+async function cargarDashboard(){
+  const filtroArea = document.getElementById("filtro-area");
+  if(filtroArea.options.length <= 1){
+    AREAS.forEach(a=>{
+      const opt = document.createElement("option");
+      opt.value = a.id; opt.textContent = a.nombre;
+      filtroArea.appendChild(opt);
+    });
+  }
+
+  document.getElementById("filtro-rango").addEventListener("change", pintarDashboard);
+  document.getElementById("filtro-area").addEventListener("change", pintarDashboard);
+  document.getElementById("btn-ir-qr").addEventListener("click", ()=>location.hash="qr");
+  document.getElementById("btn-exportar").addEventListener("click", exportarExcel);
+
+  try{
+    const snap = await db.collection("respuestas").orderBy("timestamp","desc").limit(2000).get();
+    todasLasRespuestas = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    pintarDashboard();
+  }catch(e){
+    console.error(e);
+    document.getElementById("tabla-respuestas").innerHTML =
+      `<tr class="empty-row"><td colspan="4">Error al cargar datos. Revisa las reglas de Firestore.</td></tr>`;
+  }
+}
+
+function respuestasFiltradas(){
+  const dias = parseInt(document.getElementById("filtro-rango").value, 10);
+  const area = document.getElementById("filtro-area").value;
+  let lista = todasLasRespuestas;
+
+  if(dias > 0){
+    const limite = new Date();
+    limite.setDate(limite.getDate() - dias);
+    const limiteStr = limite.toISOString().slice(0,10);
+    lista = lista.filter(r => r.fecha >= limiteStr);
+  }
+  if(area !== "todas"){
+    lista = lista.filter(r => r.area === area);
+  }
+  return lista;
+}
+
+function pintarDashboard(){
+  const datos = respuestasFiltradas();
+
+  // KPIs
+  document.getElementById("kpi-total").textContent = datos.length;
+  const promedio = datos.length ? (datos.reduce((s,r)=>s+r.calificacion,0)/datos.length) : 0;
+  document.getElementById("kpi-promedio").textContent = datos.length ? promedio.toFixed(2) : "—";
+
+  const porArea = {};
+  AREAS.forEach(a=> porArea[a.id] = { nombre:a.nombre, suma:0, n:0 });
+  datos.forEach(r=>{
+    if(!porArea[r.area]) porArea[r.area] = { nombre: r.areaNombre || r.area, suma:0, n:0 };
+    porArea[r.area].suma += r.calificacion;
+    porArea[r.area].n += 1;
+  });
+  const areasConDatos = Object.values(porArea).filter(a=>a.n>0)
+    .map(a=>({...a, promedio: a.suma/a.n}));
+
+  if(areasConDatos.length){
+    const mejor = areasConDatos.reduce((a,b)=> b.promedio > a.promedio ? b : a);
+    const peor = areasConDatos.reduce((a,b)=> b.promedio < a.promedio ? b : a);
+    document.getElementById("kpi-mejor").textContent = mejor.nombre;
+    document.getElementById("kpi-mejor-sub").textContent = mejor.promedio.toFixed(2) + " ★";
+    document.getElementById("kpi-peor").textContent = peor.nombre;
+    document.getElementById("kpi-peor-sub").textContent = peor.promedio.toFixed(2) + " ★";
+  } else {
+    document.getElementById("kpi-mejor").textContent = "—";
+    document.getElementById("kpi-peor").textContent = "—";
+    document.getElementById("kpi-mejor-sub").textContent = "";
+    document.getElementById("kpi-peor-sub").textContent = "";
+  }
+
+  // Gráfica de barras por área
+  const labelsAreas = AREAS.map(a=>a.nombre);
+  const valoresAreas = AREAS.map(a=> porArea[a.id] && porArea[a.id].n ? +(porArea[a.id].suma/porArea[a.id].n).toFixed(2) : 0);
+  const coloresAreas = valoresAreas.map(v=> v===0 ? "#E5E9F0" : v>=4 ? "#2E7D32" : v>=3 ? "#FFC220" : "#C62828");
+
+  if(chartAreas) chartAreas.destroy();
+  chartAreas = new Chart(document.getElementById("chart-areas"), {
+    type:"bar",
+    data:{ labels: labelsAreas, datasets:[{ data: valoresAreas, backgroundColor: coloresAreas, borderRadius:6 }] },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{ y:{ min:0, max:5, ticks:{stepSize:1} } }
+    }
+  });
+
+  // Tendencia diaria
+  const porDia = {};
+  datos.forEach(r=>{
+    if(!porDia[r.fecha]) porDia[r.fecha] = { suma:0, n:0 };
+    porDia[r.fecha].suma += r.calificacion;
+    porDia[r.fecha].n += 1;
+  });
+  const diasOrdenados = Object.keys(porDia).sort();
+  const valoresTendencia = diasOrdenados.map(f => +(porDia[f].suma/porDia[f].n).toFixed(2));
+
+  if(chartTendencia) chartTendencia.destroy();
+  chartTendencia = new Chart(document.getElementById("chart-tendencia"), {
+    type:"line",
+    data:{
+      labels: diasOrdenados,
+      datasets:[{ data: valoresTendencia, borderColor:"#0071CE", backgroundColor:"rgba(0,113,206,0.1)", fill:true, tension:.3 }]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{ y:{ min:0, max:5, ticks:{stepSize:1} } }
+    }
+  });
+
+  // Tabla
+  const tbody = document.getElementById("tabla-respuestas");
+  if(!datos.length){
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="4">No hay respuestas en este período.</td></tr>`;
+  } else {
+    tbody.innerHTML = datos.slice(0,100).map(r=>`
+      <tr>
+        <td>${r.fecha || "—"}</td>
+        <td>${r.areaNombre || r.area}</td>
+        <td class="stars-mini">${"★".repeat(r.calificacion)}${"☆".repeat(5-r.calificacion)}</td>
+        <td class="comentario-cell">${r.comentario ? r.comentario : "—"}</td>
+      </tr>
+    `).join("");
+  }
+}
+
+function exportarExcel(){
+  const datos = respuestasFiltradas();
+  const filas = datos.map(r=>({
+    Fecha: r.fecha || "",
+    Área: r.areaNombre || r.area,
+    Calificación: r.calificacion,
+    Comentario: r.comentario || ""
+  }));
+  const hoja = XLSX.utils.json_to_sheet(filas);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, "Respuestas");
+  XLSX.writeFile(libro, `encuesta-servicio-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/* ============================================================
+   QR
+   ============================================================ */
+function initQR(){
+  const url = location.origin + location.pathname;
+  document.getElementById("qr-url").value = url;
+  document.getElementById("qrcode").innerHTML = "";
+  new QRCode(document.getElementById("qrcode"), { text: url, width:200, height:200, colorDark:"#041E42" });
+
+  document.getElementById("btn-volver-dashboard").addEventListener("click", ()=>{
+    location.hash = "admin"; render();
+  });
+  document.getElementById("btn-descargar-qr").addEventListener("click", ()=>{
+    const canvas = document.querySelector("#qrcode canvas");
+    const link = document.createElement("a");
+    link.download = "qr-encuesta-servicio.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+}
+
+render();
+</script>
+</body>
+</html>
