@@ -180,6 +180,25 @@ textarea#comentario:focus{outline:none; border-color:var(--azul);}
 .thanks-stage h2{font-family:var(--display); font-size:22px; color:var(--azul-oscuro); margin-bottom:8px;}
 .thanks-stage p{color:var(--texto-suave); font-size:14px; max-width:280px;}
 
+.cta-box{
+  width:100%; max-width:320px; background: linear-gradient(135deg, #FFF7E0, #FFF1C2);
+  border:1.5px solid #F3D879; border-radius:16px; padding:20px; margin-top:22px; text-align:center;
+}
+.cta-box .cta-titulo{font-weight:700; font-size:14.5px; color:var(--azul-oscuro); margin-bottom:14px; line-height:1.4;}
+
+.contacto-box{
+  width:100%; max-width:320px; background:var(--tarjeta); border:1.5px solid var(--borde);
+  border-radius:16px; padding:20px; margin-top:22px; text-align:center; box-shadow: var(--sombra);
+}
+.contacto-box .cta-titulo{font-weight:700; font-size:15px; color:var(--azul-oscuro); margin-bottom:4px;}
+.contacto-box .cta-sub{font-size:12.5px; color:var(--texto-suave); margin-bottom:14px; line-height:1.4;}
+.contacto-box input{
+  width:100%; padding:12px 14px; border:1.5px solid var(--borde); border-radius:10px;
+  margin-bottom:10px; font-size:14px;
+}
+.contacto-box input:focus{outline:none; border-color:var(--azul);}
+.contacto-error{color:var(--rojo); font-size:12px; min-height:14px; margin-bottom:6px;}
+
 /* ============ ADMIN ============ */
 .admin-wrap{max-width:1080px; margin:0 auto; padding: 24px 20px 60px;}
 .admin-top{
@@ -285,6 +304,10 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
       <h2>¿Cómo calificarías el servicio?</h2>
       <div class="stars" id="stars-container"></div>
       <div class="star-label" id="star-label"></div>
+      <div class="cta-box oculto" id="bloque-giftcard-estrellas">
+        <p class="cta-titulo">🎁 ¿Quieres participar para ganar una Gift Card de Q800?</p>
+        <a class="btn-primary" style="display:block; text-decoration:none; text-align:center;" href="https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P" target="_blank" rel="noopener">Quiero participar</a>
+      </div>
     </div>
     <button class="btn-primary" id="btn-a-comentario" disabled>Continuar</button>
   </div>
@@ -300,10 +323,31 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
 
   <!-- Paso 4: gracias -->
   <div class="step oculto thanks-stage" id="paso-gracias">
-    <div class="thanks-icon">✓</div>
-    <h2>¡Gracias por tu opinión!</h2>
-    <p>Tu calificación nos ayuda a mejorar el servicio en tienda.</p>
-    <button class="btn-primary" id="btn-otra-area" style="max-width:260px; margin-top:26px;">Calificar otra área</button>
+    <div class="thanks-icon" id="gracias-icon">✓</div>
+    <h2 id="gracias-titulo">¡Gracias por tu opinión!</h2>
+    <p id="gracias-texto">Tu calificación nos ayuda a mejorar el servicio en tienda.</p>
+
+    <!-- Bloque: 5 estrellas -> sorteo Gift Card -->
+    <div class="cta-box oculto" id="bloque-giftcard">
+      <p class="cta-titulo">🎁 ¿Quieres participar para ganar una Gift Card de Q800?</p>
+      <a class="btn-primary" style="display:block; text-decoration:none; text-align:center;" id="link-giftcard" href="https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P" target="_blank" rel="noopener">Quiero participar</a>
+    </div>
+
+    <!-- Bloque: calificación baja -> formulario de contacto -->
+    <div class="contacto-box oculto" id="bloque-contacto">
+      <p class="cta-titulo">Tu opinión nos importa</p>
+      <p class="cta-sub">Déjanos tus datos para comunicarnos contigo y resolver tu inconveniente</p>
+      <input type="text" id="contacto-nombre" placeholder="Tu nombre">
+      <input type="tel" id="contacto-telefono" placeholder="Teléfono de contacto">
+      <div class="contacto-error" id="contacto-error"></div>
+      <button class="btn-primary" id="btn-enviar-contacto">Enviar mis datos</button>
+      <button class="btn-secundario" id="btn-omitir-contacto">No, gracias</button>
+    </div>
+    <div class="oculto" id="bloque-contacto-gracias">
+      <p class="cta-titulo" style="color:var(--verde);">✓ Recibimos tus datos, te contactaremos pronto.</p>
+    </div>
+
+    <button class="btn-primary" id="btn-otra-area" style="max-width:260px; margin-top:22px;">Calificar otra área</button>
   </div>
 </div>
 
@@ -472,6 +516,7 @@ window.addEventListener("hashchange", render);
 let areaSeleccionada = null;
 let calificacionSeleccionada = 0;
 let encuestaInicializada = false;
+let respuestaActualId = null;
 
 function initEncuesta(){
   if(encuestaInicializada) return;
@@ -500,6 +545,7 @@ function initEncuesta(){
       pintarEstrellas(i);
       document.getElementById("star-label").textContent = ETIQUETAS_ESTRELLAS[i];
       document.getElementById("btn-a-comentario").disabled = false;
+      document.getElementById("bloque-giftcard-estrellas").classList.toggle("oculto", i !== 5);
     });
     starsContainer.appendChild(btn);
   }
@@ -508,13 +554,25 @@ function initEncuesta(){
   document.getElementById("btn-volver-estrellas").addEventListener("click", ()=>irAPaso("estrellas"));
   document.getElementById("btn-a-comentario").addEventListener("click", ()=>irAPaso("comentario"));
   document.getElementById("btn-enviar").addEventListener("click", enviarRespuesta);
+  document.getElementById("btn-enviar-contacto").addEventListener("click", enviarContacto);
+  document.getElementById("btn-omitir-contacto").addEventListener("click", ()=>{
+    document.getElementById("bloque-contacto").classList.add("oculto");
+  });
   document.getElementById("btn-otra-area").addEventListener("click", ()=>{
     areaSeleccionada = null;
     calificacionSeleccionada = 0;
+    respuestaActualId = null;
     pintarEstrellas(0);
     document.getElementById("comentario").value = "";
+    document.getElementById("contacto-nombre").value = "";
+    document.getElementById("contacto-telefono").value = "";
+    document.getElementById("contacto-error").textContent = "";
     document.getElementById("btn-a-comentario").disabled = true;
     document.getElementById("star-label").textContent = "";
+    document.getElementById("bloque-giftcard").classList.add("oculto");
+    document.getElementById("bloque-giftcard-estrellas").classList.add("oculto");
+    document.getElementById("bloque-contacto").classList.add("oculto");
+    document.getElementById("bloque-contacto-gracias").classList.add("oculto");
     irAPaso("area");
   });
 }
@@ -540,7 +598,7 @@ async function enviarRespuesta(){
   btn.textContent = "Enviando...";
   try{
     const ahora = new Date();
-    await db.collection("respuestas").add({
+    const doc = await db.collection("respuestas").add({
       area: areaSeleccionada.id,
       areaNombre: areaSeleccionada.nombre,
       calificacion: calificacionSeleccionada,
@@ -548,13 +606,68 @@ async function enviarRespuesta(){
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       fecha: ahora.toISOString().slice(0,10)
     });
-    irAPaso("gracias");
+    respuestaActualId = doc.id;
+    mostrarPantallaGracias();
   }catch(e){
     alert("No se pudo enviar. Revisa tu conexión e intenta de nuevo.");
     console.error(e);
   }finally{
     btn.disabled = false;
     btn.textContent = "Enviar calificación";
+  }
+}
+
+// Umbral: 5 estrellas = elegible para sorteo. 1-3 estrellas = mala experiencia, pedimos datos de contacto.
+// 4 estrellas se queda solo con el agradecimiento estándar.
+function mostrarPantallaGracias(){
+  document.getElementById("bloque-giftcard").classList.add("oculto");
+  document.getElementById("bloque-contacto").classList.add("oculto");
+  document.getElementById("bloque-contacto-gracias").classList.add("oculto");
+
+  if(calificacionSeleccionada === 5){
+    document.getElementById("gracias-titulo").textContent = "¡Gracias por tu opinión!";
+    document.getElementById("gracias-texto").textContent = "Nos alegra saber que tuviste una gran experiencia.";
+    document.getElementById("bloque-giftcard").classList.remove("oculto");
+  } else if(calificacionSeleccionada <= 3){
+    document.getElementById("gracias-titulo").textContent = "Gracias por avisarnos";
+    document.getElementById("gracias-texto").textContent = "Lamentamos que tu experiencia no fue la mejor.";
+    document.getElementById("bloque-contacto").classList.remove("oculto");
+  } else {
+    document.getElementById("gracias-titulo").textContent = "¡Gracias por tu opinión!";
+    document.getElementById("gracias-texto").textContent = "Tu calificación nos ayuda a mejorar el servicio en tienda.";
+  }
+  irAPaso("gracias");
+}
+
+async function enviarContacto(){
+  const nombre = document.getElementById("contacto-nombre").value.trim();
+  const telefono = document.getElementById("contacto-telefono").value.trim();
+  const errorBox = document.getElementById("contacto-error");
+  errorBox.textContent = "";
+
+  if(!nombre || !telefono){
+    errorBox.textContent = "Ingresa tu nombre y teléfono.";
+    return;
+  }
+  const btn = document.getElementById("btn-enviar-contacto");
+  btn.disabled = true;
+  btn.textContent = "Enviando...";
+  try{
+    if(respuestaActualId){
+      await db.collection("respuestas").doc(respuestaActualId).update({
+        contactoNombre: nombre,
+        contactoTelefono: telefono,
+        contactoSolicitado: true
+      });
+    }
+    document.getElementById("bloque-contacto").classList.add("oculto");
+    document.getElementById("bloque-contacto-gracias").classList.remove("oculto");
+  }catch(e){
+    errorBox.textContent = "No se pudo enviar. Intenta de nuevo.";
+    console.error(e);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "Enviar mis datos";
   }
 }
 
