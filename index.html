@@ -11,7 +11,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -119,21 +118,6 @@ input, textarea{font-family: inherit;}
   color:var(--azul-oscuro); margin-bottom:6px;
 }
 .step .sub{color:var(--texto-suave); font-size:14px; margin-bottom:24px;}
-
-#qr-reader{
-  width:100%; border-radius:16px; overflow:hidden; background:#000;
-  box-shadow: var(--sombra); min-height:240px;
-}
-#qr-reader video{ border-radius:16px; }
-.escaneo-error{ color:var(--rojo); font-size:13px; text-align:center; min-height:18px; margin-top:10px; }
-.manual-toggle{ margin-top:18px; text-align:center; }
-.manual-toggle .btn-ghost-top{ display:inline-flex; }
-#bloque-codigo-manual{ margin-top:12px; }
-#bloque-codigo-manual input{
-  width:100%; padding:12px 14px; border:1.5px solid var(--borde); border-radius:10px;
-  margin-bottom:10px; font-size:14px; text-align:center;
-}
-#bloque-codigo-manual input:focus{ outline:none; border-color:var(--azul); }
 
 /* area grid */
 .area-grid{
@@ -309,23 +293,8 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
   </div>
   <div class="progress-track"><div class="progress-fill" id="barra-progreso"></div></div>
 
-  <!-- Paso 0: escanear QR de la factura -->
-  <div class="step" id="paso-escaneo">
-    <h2>Escanea el QR de tu factura</h2>
-    <p class="sub">Así validamos tu compra y activas tu participación en el sorteo</p>
-    <div id="qr-reader"></div>
-    <p class="escaneo-error" id="escaneo-error"></p>
-    <div class="manual-toggle">
-      <button class="btn-ghost-top" id="btn-mostrar-manual" style="margin:0 auto;">¿No puedes escanear? Ingresa el código manualmente</button>
-      <div class="oculto" id="bloque-codigo-manual">
-        <input type="text" id="codigo-manual" placeholder="Código de tu factura">
-        <button class="btn-primary" id="btn-confirmar-manual">Confirmar código</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Paso 1: elegir área -->
-  <div class="step oculto" id="paso-area">
+  <div class="step" id="paso-area">
     <h2>¿Qué área quieres calificar?</h2>
     <p class="sub">Selecciona el área que visitaste hoy</p>
     <div class="area-grid" id="grid-areas"></div>
@@ -498,24 +467,26 @@ const firebaseConfig = {
 
 // Áreas a evaluar — agrega, quita o renombra libremente
 const AREAS = [
-  { id: "cajas",        nombre: "Cajas",                icon: "🛒" },
+    { id: "limpieza",     nombre: "Limpieza y Orden",       icon: "✨" },
+  { id: "Servicio a Domicilio",nombre: "Servicio a Domicilio", icon: "🛒🛍️" },
   { id: "verduras",     nombre: "Frutas y Verduras",     icon: "🥬" },
   { id: "panaderia",    nombre: "Panadería",             icon: "🥖" },
   { id: "carniceria",   nombre: "Carnicería",            icon: "🥩" },
-  { id: "farmacia",     nombre: "Farmacia",               icon: "💊" },
+  { id: "abarrotes",     nombre: "abarrotes",               icon: "🥫" },
+  { id: "Electronicos", nombre: "Electronicos",           icon: "💻​" },
   { id: "servicio",     nombre: "Servicio al Cliente",    icon: "🙋" },
-  { id: "limpieza",     nombre: "Limpieza y Orden",       icon: "✨" },
+  { id: "cajas",        nombre: "Cajas",                icon: "🛒" },
+  { id: "Otro",     nombre: "Otro",       icon: "❓" },
 ];
 
 const ETIQUETAS_ESTRELLAS = ["", "Muy malo", "Malo", "Regular", "Bueno", "Excelente"];
-// URL genérica de respaldo — se reemplaza en cuanto se escanea/ingresa el código real de la factura
-const MEDALLIA_URL = "https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P";
-let urlMedalliaActual = MEDALLIA_URL;
+const MEDALLIA_URL = "https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=";
 
 firebase.initializeApp(firebaseConfig);
 document.querySelectorAll(".logo-slot").forEach(el=>{
   el.innerHTML = `<img src="${LOGO_TIENDA}" alt="Logo tienda">`;
 });
+document.querySelectorAll('a[href*="medallia.com"]').forEach(el=>{ el.href = MEDALLIA_URL; });
 
 const db = firebase.firestore();
 const auth = firebase.auth();
@@ -562,19 +533,6 @@ let respuestaActualId = null;
 function initEncuesta(){
   if(encuestaInicializada) return;
   encuestaInicializada = true;
-
-  iniciarEscanerFactura();
-  document.getElementById("btn-mostrar-manual").addEventListener("click", ()=>{
-    document.getElementById("bloque-codigo-manual").classList.remove("oculto");
-  });
-  document.getElementById("btn-confirmar-manual").addEventListener("click", ()=>{
-    const codigo = document.getElementById("codigo-manual").value.trim();
-    if(!codigo){
-      document.getElementById("escaneo-error").textContent = "Ingresa el código de tu factura.";
-      return;
-    }
-    procesarCodigoFactura(codigo);
-  });
 
   const gridAreas = document.getElementById("grid-areas");
   AREAS.forEach(area=>{
@@ -660,7 +618,7 @@ async function manejarCincoEstrellas(){
     // Aun si falla el guardado, igual lo enviamos a Medallia para no perder su participación
   }
 
-  window.location.href = urlMedalliaActual;
+  window.location.href = MEDALLIA_URL;
 }
 
 function reiniciarSeleccionEstrellas(){
@@ -676,78 +634,12 @@ function pintarEstrellas(n){
   });
 }
 
-/* ============================================================
-   ESCANEO DEL QR DE LA FACTURA — captura el código único de Medallia
-   ============================================================ */
-let escanerFactura = null;
-
-function iniciarEscanerFactura(){
-  if(typeof Html5Qrcode === "undefined"){
-    document.getElementById("escaneo-error").textContent = "No se pudo cargar la cámara. Ingresa el código manualmente.";
-    return;
-  }
-  escanerFactura = new Html5Qrcode("qr-reader", {
-    // Usa el detector de códigos nativo del navegador cuando está disponible
-    // (el mismo motor que usa Chrome/Google Lens) — mucho más preciso con QR pequeños.
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-  });
-  escanerFactura.start(
-    {
-      facingMode: "environment",
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      advanced: [{ focusMode: "continuous" }]
-    },
-    {
-      fps: 15,
-      qrbox: { width: 260, height: 260 },
-      aspectRatio: 1.0
-    },
-    (textoDecodificado)=>{ procesarCodigoFactura(textoDecodificado); },
-    ()=>{ /* ignorar cuadros sin QR detectado */ }
-  ).catch(()=>{
-    document.getElementById("escaneo-error").textContent = "No se pudo acceder a la cámara. Ingresa el código manualmente.";
-  });
-}
-
-function detenerEscanerFactura(){
-  if(escanerFactura){
-    escanerFactura.stop().then(()=> escanerFactura.clear()).catch(()=>{});
-    escanerFactura = null;
-  }
-}
-
-// El QR de la factura puede traer la URL completa de Medallia (con su propio "cod=")
-// o solo el código en texto plano — cubrimos ambos casos.
-function extraerUrlMedallia(textoEscaneado){
-  const texto = textoEscaneado.trim();
-  try{
-    const url = new URL(texto);
-    const codigo = url.searchParams.get("cod");
-    if(codigo){
-      return `https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=${encodeURIComponent(codigo)}`;
-    }
-    if(url.hostname.includes("medallia")){
-      return texto; // ya es un link completo de Medallia
-    }
-  }catch(e){
-    // no es una URL válida, se asume que es solo el código
-  }
-  return `https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=${encodeURIComponent(texto)}`;
-}
-
-function procesarCodigoFactura(textoEscaneado){
-  urlMedalliaActual = extraerUrlMedallia(textoEscaneado);
-  detenerEscanerFactura();
-  irAPaso("area");
-}
-
 function irAPaso(paso){
-  ["escaneo","area","estrellas","comentario","gracias"].forEach(p=>{
+  ["area","estrellas","comentario","gracias"].forEach(p=>{
     document.getElementById("paso-"+p).classList.add("oculto");
   });
   document.getElementById("paso-"+paso).classList.remove("oculto");
-  const progresos = { escaneo:12, area:32, estrellas:55, comentario:80, gracias:100 };
+  const progresos = { area:25, estrellas:55, comentario:80, gracias:100 };
   document.getElementById("barra-progreso").style.width = progresos[paso]+"%";
 }
 
@@ -782,7 +674,6 @@ async function enviarRespuesta(){
 // y si es 1-3 (mala experiencia) se pide además el dato de contacto.
 function mostrarPantallaGracias(){
   document.getElementById("bloque-giftcard").classList.remove("oculto");
-  document.getElementById("link-giftcard").href = urlMedalliaActual;
   document.getElementById("bloque-contacto").classList.add("oculto");
   document.getElementById("bloque-contacto-gracias").classList.add("oculto");
 
