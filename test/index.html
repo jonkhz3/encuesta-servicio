@@ -126,6 +126,14 @@ input, textarea{font-family: inherit;}
 }
 #qr-reader video{ border-radius:16px; }
 .escaneo-error{ color:var(--rojo); font-size:13px; text-align:center; min-height:18px; margin-top:10px; }
+.zoom-control{
+  display:flex; align-items:center; gap:10px; margin-top:14px;
+}
+.zoom-control button{
+  width:36px; height:36px; border-radius:50%; background:white; border:1.5px solid var(--borde);
+  font-size:18px; font-weight:700; color:var(--azul); flex-shrink:0;
+}
+.zoom-control input[type="range"]{ flex:1; accent-color: var(--azul); }
 .manual-toggle{ margin-top:18px; text-align:center; }
 .manual-toggle .btn-ghost-top{ display:inline-flex; }
 #bloque-codigo-manual{ margin-top:12px; }
@@ -313,7 +321,13 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
   <div class="step" id="paso-escaneo">
     <h2>Escanea el QR de tu factura</h2>
     <p class="sub">Así validamos tu compra y activas tu participación en el sorteo</p>
+    <p class="sub" style="margin-top:-16px; font-size:12.5px;">¿QR muy pequeño? Usa el control de zoom debajo de la cámara</p>
     <div id="qr-reader"></div>
+    <div class="zoom-control oculto" id="control-zoom">
+      <button type="button" id="btn-zoom-menos">−</button>
+      <input type="range" id="slider-zoom" min="1" max="5" step="0.1" value="1">
+      <button type="button" id="btn-zoom-mas">+</button>
+    </div>
     <p class="escaneo-error" id="escaneo-error"></p>
     <div class="manual-toggle">
       <button class="btn-ghost-top" id="btn-mostrar-manual" style="margin:0 auto;">¿No puedes escanear? Ingresa el código manualmente</button>
@@ -699,11 +713,51 @@ function iniciarEscanerFactura(){
     },
     (textoDecodificado)=>{ procesarCodigoFactura(textoDecodificado); },
     ()=>{ /* ignorar cuadros sin QR detectado */ }
-  ).catch((err)=>{
+  ).then(()=>{
+    habilitarZoomYEnfoque();
+  }).catch((err)=>{
     console.error("Error al iniciar cámara:", err);
     document.getElementById("escaneo-error").textContent =
       "No se pudo acceder a la cámara (" + (err && err.name ? err.name : "error") + "). Ingresa el código manualmente, o revisa que le diste permiso de cámara a este sitio y que no lo abriste desde Facebook/Messenger/Instagram.";
   });
+}
+
+function habilitarZoomYEnfoque(){
+  try{
+    const capacidades = escanerFactura.getRunningTrackCapabilities();
+    if(!capacidades) return;
+
+    // Enfoque continuo automático, si el dispositivo lo soporta
+    if(capacidades.focusMode && capacidades.focusMode.includes("continuous")){
+      escanerFactura.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(()=>{});
+    }
+
+    // Zoom digital manual, si el dispositivo lo soporta
+    if(capacidades.zoom && capacidades.zoom.max > capacidades.zoom.min){
+      const slider = document.getElementById("slider-zoom");
+      slider.min = capacidades.zoom.min;
+      slider.max = capacidades.zoom.max;
+      slider.step = capacidades.zoom.step || 0.1;
+      slider.value = capacidades.zoom.min;
+      document.getElementById("control-zoom").classList.remove("oculto");
+
+      const aplicarZoom = (valor)=>{
+        escanerFactura.applyVideoConstraints({ advanced: [{ zoom: parseFloat(valor) }] }).catch(()=>{});
+      };
+      slider.oninput = ()=> aplicarZoom(slider.value);
+      document.getElementById("btn-zoom-menos").onclick = ()=>{
+        slider.value = Math.max(parseFloat(slider.min), parseFloat(slider.value) - 0.3);
+        aplicarZoom(slider.value);
+      };
+      document.getElementById("btn-zoom-mas").onclick = ()=>{
+        slider.value = Math.min(parseFloat(slider.max), parseFloat(slider.value) + 0.3);
+        aplicarZoom(slider.value);
+      };
+    }
+  }catch(e){
+    // El dispositivo/navegador no expone estas capacidades — sin problema, sigue funcionando sin zoom manual
+    console.warn("Zoom/enfoque manual no disponible en este dispositivo:", e);
+  }
 }
 
 function detenerEscanerFactura(){
@@ -711,6 +765,7 @@ function detenerEscanerFactura(){
     escanerFactura.stop().then(()=> escanerFactura.clear()).catch(()=>{});
     escanerFactura = null;
   }
+  document.getElementById("control-zoom").classList.add("oculto");
 }
 
 // El QR de la factura puede traer la URL completa de Medallia (con su propio "cod=")
