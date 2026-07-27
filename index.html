@@ -686,10 +686,23 @@ function iniciarEscanerFactura(){
     document.getElementById("escaneo-error").textContent = "No se pudo cargar la cámara. Ingresa el código manualmente.";
     return;
   }
-  escanerFactura = new Html5Qrcode("qr-reader");
+  escanerFactura = new Html5Qrcode("qr-reader", {
+    // Usa el detector de códigos nativo del navegador cuando está disponible
+    // (el mismo motor que usa Chrome/Google Lens) — mucho más preciso con QR pequeños.
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  });
   escanerFactura.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: 220 },
+    {
+      facingMode: "environment",
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      advanced: [{ focusMode: "continuous" }]
+    },
+    {
+      fps: 15,
+      qrbox: { width: 260, height: 260 },
+      aspectRatio: 1.0
+    },
     (textoDecodificado)=>{ procesarCodigoFactura(textoDecodificado); },
     ()=>{ /* ignorar cuadros sin QR detectado */ }
   ).catch(()=>{
