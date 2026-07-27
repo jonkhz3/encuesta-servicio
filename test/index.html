@@ -735,22 +735,30 @@ function habilitarZoomYEnfoque(){
     // Zoom digital manual, si el dispositivo lo soporta
     if(capacidades.zoom && capacidades.zoom.max > capacidades.zoom.min){
       const slider = document.getElementById("slider-zoom");
-      slider.min = capacidades.zoom.min;
-      slider.max = capacidades.zoom.max;
-      slider.step = capacidades.zoom.step || 0.1;
-      slider.value = capacidades.zoom.min;
+      const zoomMin = capacidades.zoom.min;
+      const zoomMax = capacidades.zoom.max;
+      const paso = capacidades.zoom.step || 0.1;
+      // Arranca con más zoom de entrada (60% del rango disponible) en vez de empezar sin acercar
+      const zoomInicial = zoomMin + (zoomMax - zoomMin) * 0.6;
+
+      slider.min = zoomMin;
+      slider.max = zoomMax;
+      slider.step = paso;
+      slider.value = zoomInicial;
       document.getElementById("control-zoom").classList.remove("oculto");
 
+      const saltoBoton = Math.max((zoomMax - zoomMin) * 0.15, paso);
       const aplicarZoom = (valor)=>{
         escanerFactura.applyVideoConstraints({ advanced: [{ zoom: parseFloat(valor) }] }).catch(()=>{});
       };
+      aplicarZoom(zoomInicial);
       slider.oninput = ()=> aplicarZoom(slider.value);
       document.getElementById("btn-zoom-menos").onclick = ()=>{
-        slider.value = Math.max(parseFloat(slider.min), parseFloat(slider.value) - 0.3);
+        slider.value = Math.max(zoomMin, parseFloat(slider.value) - saltoBoton);
         aplicarZoom(slider.value);
       };
       document.getElementById("btn-zoom-mas").onclick = ()=>{
-        slider.value = Math.min(parseFloat(slider.max), parseFloat(slider.value) + 0.3);
+        slider.value = Math.min(zoomMax, parseFloat(slider.value) + saltoBoton);
         aplicarZoom(slider.value);
       };
     }
