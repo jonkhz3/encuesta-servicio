@@ -308,12 +308,8 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
       <h2>¿Cómo calificarías el servicio?</h2>
       <div class="stars" id="stars-container"></div>
       <div class="star-label" id="star-label"></div>
-      <div class="cta-box oculto" id="bloque-giftcard-estrellas">
-        <p class="cta-titulo">💳 ¿Quieres participar para ganar una Gift Card de Q800?</p>
-        <a class="btn-primary" style="display:block; text-decoration:none; text-align:center;" href="https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P" target="_blank" rel="noopener">Quiero participar</a>
-      </div>
     </div>
-    <button class="btn-primary" id="btn-a-comentario" disabled>Continuar</button>
+    <button class="btn-primary oculto" id="btn-a-comentario" disabled>Continuar</button>
   </div>
 
   <!-- Paso 3: comentario -->
@@ -332,10 +328,10 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
     <h2 id="gracias-titulo">¡Gracias por tu opinión!</h2>
     <p id="gracias-texto">Tu calificación nos ayuda a mejorar el servicio en tienda.</p>
 
-    <!-- Bloque: 5 estrellas -> sorteo Gift Card -->
+    <!-- Bloque: al final, invitación a ampliar en Medallia y participar en el sorteo -->
     <div class="cta-box oculto" id="bloque-giftcard">
-      <p class="cta-titulo">💳 ¿Quieres participar para ganar una Gift Card de Q800?</p>
-      <a class="btn-primary" style="display:block; text-decoration:none; text-align:center;" id="link-giftcard" href="https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P" target="_blank" rel="noopener">Quiero participar</a>
+      <p class="cta-titulo">💳 Amplía la encuesta y participa en el sorteo de una Gift Card con Q800</p>
+      <a class="btn-primary" style="display:block; text-decoration:none; text-align:center;" id="link-giftcard" href="https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P" target="_blank" rel="noopener">Continuar encuesta</a>
     </div>
 
     <!-- Bloque: calificación baja -> formulario de contacto -->
@@ -476,7 +472,7 @@ const AREAS = [
   { id: "verduras",     nombre: "Frutas y Verduras",     icon: "🥬" },
   { id: "panaderia",    nombre: "Panadería",             icon: "🥖" },
   { id: "carniceria",   nombre: "Carnicería",            icon: "🥩" },
-  { id: "farmacia",     nombre: "Farmacia",               icon: "💊" },
+  { id: "abarrotes",     nombre: "abarrotes",               icon: "🥫" },
   { id: "Electronicos", nombre: "Electronicos",           icon: "💻​" },
   { id: "servicio",     nombre: "Servicio al Cliente",    icon: "🙋" },
   { id: "cajas",        nombre: "Cajas",                icon: "🛒" },
@@ -484,11 +480,13 @@ const AREAS = [
 ];
 
 const ETIQUETAS_ESTRELLAS = ["", "Muy malo", "Malo", "Regular", "Bueno", "Excelente"];
+const MEDALLIA_URL = "https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P";
 
 firebase.initializeApp(firebaseConfig);
 document.querySelectorAll(".logo-slot").forEach(el=>{
   el.innerHTML = `<img src="${LOGO_TIENDA}" alt="Logo tienda">`;
 });
+document.querySelectorAll('a[href*="medallia.com"]').forEach(el=>{ el.href = MEDALLIA_URL; });
 
 const db = firebase.firestore();
 const auth = firebase.auth();
@@ -555,17 +553,29 @@ function initEncuesta(){
     btn.className = "star-btn";
     btn.textContent = "★";
     btn.addEventListener("click", ()=>{
+      if(calificacionSeleccionada !== 0) return; // evita doble clic mientras se procesa
       calificacionSeleccionada = i;
       pintarEstrellas(i);
       document.getElementById("star-label").textContent = ETIQUETAS_ESTRELLAS[i];
-      document.getElementById("btn-a-comentario").disabled = false;
-      document.getElementById("bloque-giftcard-estrellas").classList.toggle("oculto", i !== 5);
+      document.querySelectorAll(".star-btn").forEach(b=> b.disabled = true);
+
+      if(i === 5){
+        manejarCincoEstrellas();
+      } else {
+        setTimeout(()=>{ irAPaso("comentario"); }, 450);
+      }
     });
     starsContainer.appendChild(btn);
   }
 
-  document.getElementById("btn-volver-area").addEventListener("click", ()=>irAPaso("area"));
-  document.getElementById("btn-volver-estrellas").addEventListener("click", ()=>irAPaso("estrellas"));
+  document.getElementById("btn-volver-area").addEventListener("click", ()=>{
+    reiniciarSeleccionEstrellas();
+    irAPaso("area");
+  });
+  document.getElementById("btn-volver-estrellas").addEventListener("click", ()=>{
+    reiniciarSeleccionEstrellas();
+    irAPaso("estrellas");
+  });
   document.getElementById("btn-a-comentario").addEventListener("click", ()=>irAPaso("comentario"));
   document.getElementById("btn-enviar").addEventListener("click", enviarRespuesta);
   document.getElementById("btn-enviar-contacto").addEventListener("click", enviarContacto);
@@ -574,22 +584,48 @@ function initEncuesta(){
   });
   document.getElementById("btn-otra-area").addEventListener("click", ()=>{
     areaSeleccionada = null;
-    calificacionSeleccionada = 0;
     respuestaActualId = null;
-    pintarEstrellas(0);
+    reiniciarSeleccionEstrellas();
     document.getElementById("comentario").value = "";
     document.getElementById("atendido-por").value = "";
     document.getElementById("contacto-nombre").value = "";
     document.getElementById("contacto-telefono").value = "";
     document.getElementById("contacto-error").textContent = "";
-    document.getElementById("btn-a-comentario").disabled = true;
-    document.getElementById("star-label").textContent = "";
     document.getElementById("bloque-giftcard").classList.add("oculto");
-    document.getElementById("bloque-giftcard-estrellas").classList.add("oculto");
     document.getElementById("bloque-contacto").classList.add("oculto");
     document.getElementById("bloque-contacto-gracias").classList.add("oculto");
     irAPaso("area");
   });
+}
+
+async function manejarCincoEstrellas(){
+  // Bloquear más interacción mientras se procesa (sin mostrar ningún aviso, redirección silenciosa)
+  document.querySelectorAll(".star-btn").forEach(b=> b.disabled = true);
+
+  try{
+    const doc = await db.collection("respuestas").add({
+      area: areaSeleccionada.id,
+      areaNombre: areaSeleccionada.nombre,
+      calificacion: 5,
+      comentario: "",
+      atendidoPor: "",
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      fecha: new Date().toISOString().slice(0,10)
+    });
+    respuestaActualId = doc.id;
+  }catch(e){
+    console.error("No se pudo guardar antes de redirigir a Medallia:", e);
+    // Aun si falla el guardado, igual lo enviamos a Medallia para no perder su participación
+  }
+
+  window.location.href = MEDALLIA_URL;
+}
+
+function reiniciarSeleccionEstrellas(){
+  calificacionSeleccionada = 0;
+  pintarEstrellas(0);
+  document.getElementById("star-label").textContent = "";
+  document.querySelectorAll(".star-btn").forEach(b=> b.disabled = false);
 }
 
 function pintarEstrellas(n){
@@ -633,18 +669,15 @@ async function enviarRespuesta(){
   }
 }
 
-// Umbral: 5 estrellas = elegible para sorteo. 1-3 estrellas = mala experiencia, pedimos datos de contacto.
-// 4 estrellas se queda solo con el agradecimiento estándar.
+// Nota: 5 estrellas nunca llega aquí — se guarda y redirige de forma silenciosa desde manejarCincoEstrellas().
+// Esta pantalla es para calificaciones de 1 a 4: siempre se invita a ampliar en Medallia,
+// y si es 1-3 (mala experiencia) se pide además el dato de contacto.
 function mostrarPantallaGracias(){
-  document.getElementById("bloque-giftcard").classList.add("oculto");
+  document.getElementById("bloque-giftcard").classList.remove("oculto");
   document.getElementById("bloque-contacto").classList.add("oculto");
   document.getElementById("bloque-contacto-gracias").classList.add("oculto");
 
-  if(calificacionSeleccionada === 5){
-    document.getElementById("gracias-titulo").textContent = "¡Gracias por tu opinión!";
-    document.getElementById("gracias-texto").textContent = "Nos alegra saber que tuviste una gran experiencia.";
-    document.getElementById("bloque-giftcard").classList.remove("oculto");
-  } else if(calificacionSeleccionada <= 3){
+  if(calificacionSeleccionada <= 3){
     document.getElementById("gracias-titulo").textContent = "Gracias por avisarnos";
     document.getElementById("gracias-texto").textContent = "Lamentamos que tu experiencia no fue la mejor.";
     document.getElementById("bloque-contacto").classList.remove("oculto");
