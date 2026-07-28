@@ -524,8 +524,8 @@ const AREAS = [
 
 const ETIQUETAS_ESTRELLAS = ["", "Muy malo", "Malo", "Regular", "Bueno", "Excelente"];
 // URL genérica de respaldo — se reemplaza en cuanto se escanea/ingresa el código real de la factura
-const MEDALLIA_URL = "https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P";
-let urlMedalliaActual = MEDALLIA_URL;
+// La URL de Medallia ya no tiene un valor fijo: siempre se obtiene del QR real de la factura escaneada
+let urlMedalliaActual = null;
 
 firebase.initializeApp(firebaseConfig);
 document.querySelectorAll(".logo-slot").forEach(el=>{
