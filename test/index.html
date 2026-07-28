@@ -326,8 +326,9 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
 
   <!-- Paso: registrar factura (opcional, se abre desde 5 estrellas o desde el botón final) -->
   <div class="step oculto" id="paso-escaneo">
+    <button class="btn-ghost-top" id="btn-omitir-registro" style="align-self:flex-end;">Saltar por ahora →</button>
     <h2>Registra tu factura</h2>
-    <p class="sub">Escanea el QR de tu recibo para activar tu participación en el sorteo</p>
+    <p class="sub">Escanea el QR de tu factura para activar tu participación en el sorteo</p>
     <p class="sub" style="margin-top:-16px; font-size:12.5px;">¿QR muy pequeño? Usa el control de zoom debajo de la cámara</p>
     <div id="qr-reader"></div>
     <div class="zoom-control oculto" id="control-zoom">
@@ -343,7 +344,6 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
         <button class="btn-primary" id="btn-confirmar-manual">Confirmar código</button>
       </div>
     </div>
-    <button class="btn-secundario" id="btn-omitir-registro">Saltar por ahora</button>
   </div>
 
   <!-- Paso: estrellas -->
@@ -665,7 +665,7 @@ function abrirPasoRegistro(origen){
 
   const btnOmitir = document.getElementById("btn-omitir-registro");
   if(origen === "cinco"){
-    btnOmitir.textContent = "Saltar por ahora";
+    btnOmitir.textContent = "Saltar por ahora →";
     btnOmitir.onclick = ()=>{
       detenerEscanerFactura();
       setTimeout(()=>{ irAPaso("comentario"); }, 150);
