@@ -317,10 +317,17 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
   </div>
   <div class="progress-track"><div class="progress-fill" id="barra-progreso"></div></div>
 
-  <!-- Paso 0: escanear QR de la factura -->
-  <div class="step" id="paso-escaneo">
-    <h2>Escanea el QR de tu factura</h2>
-    <p class="sub">Así validamos tu compra y activas tu participación en el sorteo</p>
+  <!-- Paso: elegir área (ahora es el primer paso) -->
+  <div class="step" id="paso-area">
+    <h2>¿Qué área quieres calificar?</h2>
+    <p class="sub">Selecciona el área que visitaste hoy</p>
+    <div class="area-grid" id="grid-areas"></div>
+  </div>
+
+  <!-- Paso: registrar factura (opcional, se abre desde 5 estrellas o desde el botón final) -->
+  <div class="step oculto" id="paso-escaneo">
+    <h2>Registra tu factura</h2>
+    <p class="sub">Escanea el QR de tu recibo para activar tu participación en el sorteo</p>
     <p class="sub" style="margin-top:-16px; font-size:12.5px;">¿QR muy pequeño? Usa el control de zoom debajo de la cámara</p>
     <div id="qr-reader"></div>
     <div class="zoom-control oculto" id="control-zoom">
@@ -336,16 +343,10 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
         <button class="btn-primary" id="btn-confirmar-manual">Confirmar código</button>
       </div>
     </div>
+    <button class="btn-secundario" id="btn-omitir-registro">Saltar por ahora</button>
   </div>
 
-  <!-- Paso 1: elegir área -->
-  <div class="step oculto" id="paso-area">
-    <h2>¿Qué área quieres calificar?</h2>
-    <p class="sub">Selecciona el área que visitaste hoy</p>
-    <div class="area-grid" id="grid-areas"></div>
-  </div>
-
-  <!-- Paso 2: estrellas -->
+  <!-- Paso: estrellas -->
   <div class="step oculto" id="paso-estrellas">
     <button class="btn-ghost-top" id="btn-volver-area">← Cambiar área</button>
     <div class="star-stage">
@@ -357,7 +358,7 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
     <button class="btn-primary oculto" id="btn-a-comentario" disabled>Continuar</button>
   </div>
 
-  <!-- Paso 3: comentario -->
+  <!-- Paso: comentario -->
   <div class="step oculto" id="paso-comentario">
     <button class="btn-ghost-top" id="btn-volver-estrellas">← Volver</button>
     <h2>¿Algo que quieras contarnos?</h2>
@@ -367,16 +368,16 @@ td{padding:10px 12px; border-bottom:1px solid var(--borde); vertical-align:top;}
     <button class="btn-primary" id="btn-enviar" style="margin-top:20px;">Enviar calificación</button>
   </div>
 
-  <!-- Paso 4: gracias -->
+  <!-- Paso: gracias -->
   <div class="step oculto thanks-stage" id="paso-gracias">
     <div class="thanks-icon" id="gracias-icon">✓</div>
     <h2 id="gracias-titulo">¡Gracias por tu opinión!</h2>
     <p id="gracias-texto">Tu calificación nos ayuda a mejorar el servicio en tienda.</p>
 
-    <!-- Bloque: al final, invitación a ampliar en Medallia y participar en el sorteo -->
+    <!-- Bloque: al final, invitación a registrar factura y participar en el sorteo -->
     <div class="cta-box oculto" id="bloque-giftcard">
-      <p class="cta-titulo">💳 Amplía la encuesta y participa en el sorteo de una Gift Card con Q800</p>
-      <a class="btn-primary" style="display:block; text-decoration:none; text-align:center;" id="link-giftcard" href="https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=7WSLRD1S20P" target="_blank" rel="noopener">Continuar encuesta</a>
+      <p class="cta-titulo">💳 Registra tu factura y participa en el sorteo de una Gift Card con Q800</p>
+      <button class="btn-primary" id="btn-registrar-factura-final" type="button">Registra tu factura</button>
     </div>
 
     <!-- Bloque: calificación baja -> formulario de contacto -->
@@ -577,7 +578,6 @@ function initEncuesta(){
   if(encuestaInicializada) return;
   encuestaInicializada = true;
 
-  iniciarEscanerFactura();
   document.getElementById("btn-mostrar-manual").addEventListener("click", ()=>{
     document.getElementById("bloque-codigo-manual").classList.remove("oculto");
   });
@@ -616,7 +616,7 @@ function initEncuesta(){
       document.querySelectorAll(".star-btn").forEach(b=> b.disabled = true);
 
       if(i === 5){
-        manejarCincoEstrellas();
+        abrirPasoRegistro("cinco");
       } else {
         setTimeout(()=>{ irAPaso("comentario"); }, 450);
       }
@@ -638,9 +638,13 @@ function initEncuesta(){
   document.getElementById("btn-omitir-contacto").addEventListener("click", ()=>{
     document.getElementById("bloque-contacto").classList.add("oculto");
   });
+  document.getElementById("btn-registrar-factura-final").addEventListener("click", ()=>{
+    abrirPasoRegistro("final");
+  });
   document.getElementById("btn-otra-area").addEventListener("click", ()=>{
     areaSeleccionada = null;
     respuestaActualId = null;
+    origenRegistro = null;
     reiniciarSeleccionEstrellas();
     document.getElementById("comentario").value = "";
     document.getElementById("atendido-por").value = "";
@@ -654,27 +658,33 @@ function initEncuesta(){
   });
 }
 
-async function manejarCincoEstrellas(){
-  // Bloquear más interacción mientras se procesa (sin mostrar ningún aviso, redirección silenciosa)
-  document.querySelectorAll(".star-btn").forEach(b=> b.disabled = true);
+let origenRegistro = null; // "cinco" (desde la selección de 5 estrellas) o "final" (desde el botón al final)
 
-  try{
-    const doc = await db.collection("respuestas").add({
-      area: areaSeleccionada.id,
-      areaNombre: areaSeleccionada.nombre,
-      calificacion: 5,
-      comentario: "",
-      atendidoPor: "",
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      fecha: new Date().toISOString().slice(0,10)
-    });
-    respuestaActualId = doc.id;
-  }catch(e){
-    console.error("No se pudo guardar antes de redirigir a Medallia:", e);
-    // Aun si falla el guardado, igual lo enviamos a Medallia para no perder su participación
+function abrirPasoRegistro(origen){
+  origenRegistro = origen;
+
+  const btnOmitir = document.getElementById("btn-omitir-registro");
+  if(origen === "cinco"){
+    btnOmitir.textContent = "Saltar por ahora";
+    btnOmitir.onclick = ()=>{
+      detenerEscanerFactura();
+      setTimeout(()=>{ irAPaso("comentario"); }, 150);
+    };
+  } else {
+    btnOmitir.textContent = "← Volver";
+    btnOmitir.onclick = ()=>{
+      detenerEscanerFactura();
+      irAPaso("gracias");
+    };
   }
 
-  window.location.href = urlMedalliaActual;
+  document.getElementById("escaneo-error").textContent = "";
+  document.getElementById("codigo-manual").value = "";
+  document.getElementById("bloque-codigo-manual").classList.add("oculto");
+
+  irAPaso("escaneo");
+  detenerEscanerFactura();
+  iniciarEscanerFactura();
 }
 
 function reiniciarSeleccionEstrellas(){
@@ -795,10 +805,35 @@ function extraerUrlMedallia(textoEscaneado){
   return `https://survey3.medallia.com/?brick-qr-gt-par&pa=2&cod=${encodeURIComponent(texto)}`;
 }
 
-function procesarCodigoFactura(textoEscaneado){
+async function procesarCodigoFactura(textoEscaneado){
   urlMedalliaActual = extraerUrlMedallia(textoEscaneado);
   detenerEscanerFactura();
-  irAPaso("area");
+
+  if(origenRegistro === "cinco"){
+    // Vino de elegir 5 estrellas: guardamos la calificación y enviamos directo a Medallia
+    try{
+      const doc = await db.collection("respuestas").add({
+        area: areaSeleccionada.id,
+        areaNombre: areaSeleccionada.nombre,
+        calificacion: 5,
+        comentario: "",
+        atendidoPor: "",
+        codigoFactura: textoEscaneado,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        fecha: new Date().toISOString().slice(0,10)
+      });
+      respuestaActualId = doc.id;
+    }catch(e){
+      console.error("No se pudo guardar antes de redirigir a Medallia:", e);
+    }
+    window.location.href = urlMedalliaActual;
+  } else {
+    // Vino del botón final: la respuesta ya se guardó antes, solo agregamos el código y redirigimos
+    if(respuestaActualId){
+      db.collection("respuestas").doc(respuestaActualId).update({ codigoFactura: textoEscaneado }).catch(()=>{});
+    }
+    window.location.href = urlMedalliaActual;
+  }
 }
 
 function irAPaso(paso){
@@ -836,12 +871,10 @@ async function enviarRespuesta(){
   }
 }
 
-// Nota: 5 estrellas nunca llega aquí — se guarda y redirige de forma silenciosa desde manejarCincoEstrellas().
-// Esta pantalla es para calificaciones de 1 a 4: siempre se invita a ampliar en Medallia,
-// y si es 1-3 (mala experiencia) se pide además el dato de contacto.
+// Nota: esta pantalla final aplica para cualquier calificación (1-5). El botón "Registra tu factura"
+// abre el paso de escaneo con origen "final". Si es 1-3 (mala experiencia) se pide además el dato de contacto.
 function mostrarPantallaGracias(){
   document.getElementById("bloque-giftcard").classList.remove("oculto");
-  document.getElementById("link-giftcard").href = urlMedalliaActual;
   document.getElementById("bloque-contacto").classList.add("oculto");
   document.getElementById("bloque-contacto-gracias").classList.add("oculto");
 
